@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>BAEK - fundo animado</title>
+<style>
+  :root {
+    box-sizing: border-box;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    --page-bg: #0b0509;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) { --page-bg: #0b0509; }
+  }
+  :root[data-theme="dark"] { --page-bg: #0b0509; }
+  html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+  html, body { height: 100%; margin: 0; overflow: hidden; background: var(--page-bg); }
+
+  #stage {
+    position: absolute; left: 0; top: 0;
+    width: 1920px; height: 1080px;
+    transform-origin: 0 0; overflow: hidden;
+    background: #150A17;
+  }
+  #fx { position: absolute; inset: 0; width: 1920px; height: 1080px; }
+  /* moldura fina em bronze ao redor da area do jogo (o jogo fica por cima, so aparece o lado de fora) */
+  #frame {
+    position: absolute; pointer-events: none;
+    box-shadow: 0 0 0 2px rgba(176,138,84,.55), 0 0 36px 6px rgba(110,31,44,.55);
+  }
+</style>
+</head>
+<body>
+<div id="stage">
+  <canvas id="fx" width="960" height="540"></canvas>
+  <div id="frame"></div>
+</div>
+
+<script>
+(function () {
+  var params = new URLSearchParams(location.search);
+
+  // area do jogo (x,y,largura,altura) em px de uma tela 1920x1080. Padrao: 1387x780 centralizado no topo
+  var gm = (params.get('game') || '266,0,1387,780').split(',').map(Number);
+  if (gm.length !== 4 || gm.some(isNaN)) gm = [266, 0, 1387, 780];
+  var frame = document.getElementById('frame');
+  // sem moldura por padrao; use ?frame para ligar a linha de bronze em volta do jogo
+  if (!params.has('frame')) frame.style.display = 'none';
+  frame.style.left = gm[0] + 'px'; frame.style.top = gm[1] + 'px';
+  frame.style.width = gm[2] + 'px'; frame.style.height = gm[3] + 'px';
+
+  var stage = document.getElementById('stage');
+  function fit() {
+    var s = Math.min(window.innerWidth / 1920, window.innerHeight / 1080);
+    stage.style.transform = 'scale(' + s + ')';
+    stage.style.left = ((window.innerWidth - 1920 * s) / 2) + 'px';
+    stage.style.top = ((window.innerHeight - 1080 * s) / 2) + 'px';
+  }
+  fit();
+  window.addEventListener('resize', fit);
+
+  function rand(a, b) { return a + Math.random() * (b - a); }
+
+  var cv = document.getElementById('fx');
+  var ctx = cv.getContext('2d');
+  var W = cv.width, H = cv.height; // 960 x 540 (metade da resolucao, escalado pelo CSS)
+
+  var smokeColors = ['201,180,154', '150,120,128', '122,106,96', '201,180,154'];
+  var blobs = [];
+  for (var i = 0; i < 26; i++) {
+    blobs.push({
+      x: rand(-150, W + 150), y: rand(0, H), r: rand(90, 200),
+      vx: rand(5, 16), phase: rand(0, 6.28), amp: rand(10, 30), freq: rand(0.1, 0.3),
+      a: rand(0.08, 0.15), c: smokeColors[i % smokeColors.length]
+    });
+  }
+  var parts = [];
+  for (var j = 0; j < 46; j++) {
+    var petal = Math.random() < 0.55;
+    parts.push({
+      x: rand(0, W), y: rand(0, H), vx: rand(8, 26), vy: rand(-4, 10),
+      s: petal ? rand(2.2, 4.4) : rand(0.9, 1.9), petal: petal,
+      rot: rand(0, 6.28), vr: rand(-1.2, 1.2), phase: rand(0, 6.28), a: rand(0.4, 0.85)
+    });
+  }
+
+  function drawBase() {
+    var g = ctx.createLinearGradient(0, 0, W, 0);
+    g.addColorStop(0, '#2A1428'); g.addColorStop(0.25, '#1B0E1C'); g.addColorStop(0.5, '#150A17');
+    g.addColorStop(0.75, '#1B0E1C'); g.addColorStop(1, '#2A1428');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+
+    // brilho bordo nos cantos de baixo
+    var w1 = ctx.createRadialGradient(0, H, 0, 0, H, 380);
+    w1.addColorStop(0, 'rgba(110,31,44,.55)'); w1.addColorStop(1, 'rgba(110,31,44,0)');
+    ctx.fillStyle = w1; ctx.fillRect(0, 0, W, H);
+    var w2 = ctx.createRadialGradient(W, H, 0, W, H, 380);
+    w2.addColorStop(0, 'rgba(110,31,44,.55)'); w2.addColorStop(1, 'rgba(110,31,44,0)');
+    ctx.fillStyle = w2; ctx.fillRect(0, 0, W, H);
+
+    // luz rosada fraca no alto, dos dois lados
+    var l1 = ctx.createRadialGradient(W * 0.08, H * 0.15, 0, W * 0.08, H * 0.15, 260);
+    l1.addColorStop(0, 'rgba(232,201,190,.10)'); l1.addColorStop(1, 'rgba(232,201,190,0)');
+    ctx.fillStyle = l1; ctx.fillRect(0, 0, W, H);
+    var l2 = ctx.createRadialGradient(W * 0.92, H * 0.15, 0, W * 0.92, H * 0.15, 260);
+    l2.addColorStop(0, 'rgba(232,201,190,.10)'); l2.addColorStop(1, 'rgba(232,201,190,0)');
+    ctx.fillStyle = l2; ctx.fillRect(0, 0, W, H);
+  }
+
+  function drawVignette() {
+    var v = ctx.createRadialGradient(W / 2, H / 2, H * 0.35, W / 2, H / 2, W * 0.62);
+    v.addColorStop(0, 'rgba(8,3,10,0)'); v.addColorStop(1, 'rgba(8,3,10,.55)');
+    ctx.fillStyle = v; ctx.fillRect(0, 0, W, H);
+  }
+
+  var last = performance.now();
+  function frameLoop(now) {
+    var dt = Math.min(0.05, (now - last) / 1000);
+    last = now;
+    var t = now / 1000;
+
+    drawBase();
+
+    for (var i = 0; i < blobs.length; i++) {
+      var b = blobs[i];
+      b.x += b.vx * dt;
+      if (b.x - b.r * 1.7 > W) b.x = -b.r * 1.7;
+      var y = b.y + Math.sin(t * b.freq + b.phase) * b.amp;
+      var g = ctx.createRadialGradient(b.x, y, 0, b.x, y, b.r);
+      g.addColorStop(0, 'rgba(' + b.c + ',' + b.a + ')');
+      g.addColorStop(1, 'rgba(' + b.c + ',0)');
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.ellipse(b.x, y, b.r * 1.7, b.r * 0.8, 0, 0, 6.283); ctx.fill();
+    }
+
+    drawVignette();
+
+    for (var k = 0; k < parts.length; k++) {
+      var p = parts[k];
+      p.x += p.vx * dt;
+      p.y += (p.vy + Math.sin(t * 1.1 + p.phase) * 8) * dt;
+      p.rot += p.vr * dt;
+      if (p.x > W + 10) { p.x = -10; p.y = rand(0, H); }
+      if (p.y > H + 10) p.y = -10;
+      if (p.y < -10) p.y = H + 10;
+      ctx.save();
+      ctx.translate(p.x, p.y); ctx.rotate(p.rot);
+      ctx.globalAlpha = p.a * (0.7 + 0.3 * Math.sin(t * 2 + p.phase));
+      ctx.fillStyle = p.petal ? '#B3202F' : '#E8553A';
+      ctx.beginPath();
+      if (p.petal) ctx.ellipse(0, 0, p.s * 1.6, p.s * 0.8, 0, 0, 6.283);
+      else ctx.arc(0, 0, p.s, 0, 6.283);
+      ctx.fill(); ctx.restore();
+    }
+    ctx.globalAlpha = 1;
+    requestAnimationFrame(frameLoop);
+  }
+  requestAnimationFrame(frameLoop);
+})();
+</script>
+</body>
+</html>
